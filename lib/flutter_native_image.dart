@@ -24,6 +24,21 @@ class FlutterNativeImage {
     return new File(file);
   }
 
+  static Future<File> copyInto(String from, String into, {int dstX, int dstY, int srcX, int srcY, int srcW, int srcH}) async {
+    var file = await _channel.invokeMethod("copyInto", {
+      'from': from,
+      'into': into,
+      'srcX': srcX,
+      'srcY': srcY,
+      'srcW': srcW,
+      'srcH': srcH,
+      'dstY': dstY,
+      'dstX': dstX,
+    });
+
+    return File(file);
+  }
+
   static Future<ImageProperties> getImageProperties(String fileName) async {
 
     ImageOrientation decodeOrientation(int orientation) {

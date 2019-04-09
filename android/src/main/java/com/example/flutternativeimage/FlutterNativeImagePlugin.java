@@ -45,6 +45,71 @@ public class FlutterNativeImagePlugin implements MethodCallHandler {
 
   @Override
   public void onMethodCall(MethodCall call, Result result) {
+    if (call.method.equals("copyInto")) {
+      String from = call.argument("from");
+      String into = call.argument("into");
+      int srcX = call.argument("srcX");
+      int srcY = call.argument("srcY");
+      int srcW = call.argument("srcW");
+      int srcH = call.argument("srcH");
+      int dstX = call.argument("dstX");
+      int dstY = call.argument("dstY");
+
+      File fileFrom = new File(from);
+      File fileInto = new File(into);
+
+      if(!fileFrom.exists()) {
+        result.error("source file does not exist", from, null);
+        return;
+      }
+
+      if(!fileInto.exists()) {
+        result.error("destination file does not exist", into, null);
+        return;
+      }
+
+      Bitmap fromBmp = BitmapFactory.decodeFile(from);
+      Bitmap intoBmp = BitmapFactory.decodeFile(into);
+      Bitmap mutableInto = intoBmp.copy(intoBmp.getConfig(), true);
+
+      for (int x = 0; x < srcW; x++) {
+        for (int y = 0; y < srcH; y++) {
+          if (dstX + x < 0 || dstY + y < 0 || dstX + x >= intoBmp.getWidth() || dstY + y >= intoBmp.getHeight()) {
+            continue;
+          }
+
+          if (srcX + x < 0 || srcY + y < 0 || srcX + x >= fromBmp.getWidth() || srcY + y >= fromBmp.getHeight()) {
+            continue;
+          }
+
+          mutableInto.setPixel(dstX + x, dstY + y, fromBmp.getPixel(srcX + x, srcY + y));
+        }
+      }
+
+      ByteArrayOutputStream bos = new ByteArrayOutputStream();
+      mutableInto.compress(Bitmap.CompressFormat.JPEG, 100, bos);
+
+      try {
+        String outputFileName = File.createTempFile(
+                getFilenameWithoutExtension(fileInto).concat("_edited"),
+                ".jpg",
+                activity.getExternalCacheDir()
+        ).getPath();
+
+        OutputStream outputStream = new FileOutputStream(outputFileName);
+        bos.writeTo(outputStream);
+
+        copyExif(into, outputFileName);
+
+        result.success(outputFileName);
+      } catch (IOException e) {
+        e.printStackTrace();
+        result.error("something went wrong", into, null);
+      }
+
+      return;
+    }
+
     if(call.method.equals("compressImage")) {
       String fileName = call.argument("file");
       int resizePercentage = call.argument("percentage");
