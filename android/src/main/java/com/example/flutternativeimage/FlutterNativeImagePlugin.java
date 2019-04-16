@@ -2,6 +2,7 @@ package com.example.flutternativeimage;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.media.ExifInterface;
 import android.util.Log;
 import android.app.Activity;
@@ -41,6 +42,49 @@ public class FlutterNativeImagePlugin implements MethodCallHandler {
 
   private FlutterNativeImagePlugin(Activity activity) {
     this.activity = activity;
+  }
+
+  public static Bitmap rotateBitmap(Bitmap bitmap, int orientation) {
+    Matrix matrix = new Matrix();
+    switch (orientation) {
+      case ExifInterface.ORIENTATION_NORMAL:
+        return bitmap;
+      case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
+        matrix.setScale(-1, 1);
+        break;
+      case ExifInterface.ORIENTATION_ROTATE_180:
+        matrix.setRotate(180);
+        break;
+      case ExifInterface.ORIENTATION_FLIP_VERTICAL:
+        matrix.setRotate(180);
+        matrix.postScale(-1, 1);
+        break;
+      case ExifInterface.ORIENTATION_TRANSPOSE:
+        matrix.setRotate(90);
+        matrix.postScale(-1, 1);
+        break;
+      case ExifInterface.ORIENTATION_ROTATE_90:
+        matrix.setRotate(90);
+        break;
+      case ExifInterface.ORIENTATION_TRANSVERSE:
+        matrix.setRotate(-90);
+        matrix.postScale(-1, 1);
+        break;
+      case ExifInterface.ORIENTATION_ROTATE_270:
+        matrix.setRotate(-90);
+        break;
+      default:
+        return bitmap;
+    }
+    try {
+      Bitmap bmRotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+      bitmap.recycle();
+      return bmRotated;
+    }
+    catch (OutOfMemoryError e) {
+      e.printStackTrace();
+      return null;
+    }
   }
 
   @Override
@@ -87,19 +131,19 @@ public class FlutterNativeImagePlugin implements MethodCallHandler {
       }
 
       ByteArrayOutputStream bos = new ByteArrayOutputStream();
-      mutableInto.compress(Bitmap.CompressFormat.JPEG, 100, bos);
+      mutableInto.compress(Bitmap.CompressFormat.WEBP, 100, bos);
 
       try {
         String outputFileName = File.createTempFile(
                 getFilenameWithoutExtension(fileInto).concat("_edited"),
-                ".jpg",
+                ".webp",
                 activity.getExternalCacheDir()
         ).getPath();
 
         OutputStream outputStream = new FileOutputStream(outputFileName);
         bos.writeTo(outputStream);
 
-        copyExif(into, outputFileName);
+//        copyExif(into, outputFileName);
 
         result.success(outputFileName);
       } catch (IOException e) {
@@ -125,6 +169,16 @@ public class FlutterNativeImagePlugin implements MethodCallHandler {
       }
 
       Bitmap bmp = BitmapFactory.decodeFile(fileName);
+
+      ExifInterface exifInterface = null;
+      try {
+        exifInterface = new ExifInterface(fileName);
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+      int degree = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED);
+
+
       ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
       int newWidth = targetWidth == 0 ? (bmp.getWidth() / 100 * resizePercentage) : targetWidth;
@@ -133,19 +187,20 @@ public class FlutterNativeImagePlugin implements MethodCallHandler {
       bmp = Bitmap.createScaledBitmap(
               bmp, newWidth, newHeight, false);
 
-      bmp.compress(Bitmap.CompressFormat.JPEG, quality, bos);
+      bmp = rotateBitmap(bmp, degree);
+      bmp.compress(Bitmap.CompressFormat.WEBP, quality, bos);
 
       try {
         String outputFileName = File.createTempFile(
           getFilenameWithoutExtension(file).concat("_compressed"), 
-          ".jpg", 
+          ".webp",
           activity.getExternalCacheDir()
         ).getPath();
 
         OutputStream outputStream = new FileOutputStream(outputFileName);
         bos.writeTo(outputStream);
 
-        copyExif(fileName, outputFileName);
+//        copyExif(fileName, outputFileName);
 
         result.success(outputFileName);
       } catch (FileNotFoundException e) {
@@ -174,14 +229,14 @@ public class FlutterNativeImagePlugin implements MethodCallHandler {
       properties.put("width", options.outWidth);
       properties.put("height", options.outHeight);
 
-      int orientation = ExifInterface.ORIENTATION_UNDEFINED;
+      /* int orientation = ExifInterface.ORIENTATION_UNDEFINED;
       try {
         ExifInterface exif = new ExifInterface(fileName);
         orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED);
       } catch(IOException ex) {
         // EXIF could not be read from the file; ignore
       }
-      properties.put("orientation", orientation);
+      properties.put("orientation", orientation); */
 
       result.success(properties);
       return;
@@ -210,19 +265,19 @@ public class FlutterNativeImagePlugin implements MethodCallHandler {
         result.error("bounds are outside of the dimensions of the source image", fileName, null);
       }
 
-      bmp.compress(Bitmap.CompressFormat.JPEG, 100, bos);
+      bmp.compress(Bitmap.CompressFormat.WEBP, 100, bos);
 
     	try {
         String outputFileName = File.createTempFile(
           getFilenameWithoutExtension(file).concat("_cropped"), 
-          ".jpg", 
+          ".webp",
           activity.getExternalCacheDir()
         ).getPath();
 
   			OutputStream outputStream = new FileOutputStream(outputFileName);
   			bos.writeTo(outputStream);
 
-        copyExif(fileName, outputFileName);
+//        copyExif(fileName, outputFileName);
 
         result.success(outputFileName);
   		} catch (FileNotFoundException e) {
